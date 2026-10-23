@@ -32,10 +32,13 @@ jobs:
       - name: Diagnostics (versions)
         shell: bash
         run: |
-          for p in expo expo-modules-autolinking expo-modules-core react-native expo-sqlite expo-file-system expo-notifications expo-crypto @expo/vector-icons; do
-            v=$(node -p "require('$p/package.json').version" 2>/dev/null || echo missing); echo "::notice title=ver::$p@$v"; done
-          npx expo-modules-autolinking resolve -p android --json > al.json 2>/dev/null || true
-          node -e "const j=require('./al.json');(j.modules||[]).forEach((m,i)=>console.log('::notice title=mod'+i+'::'+m.packageName+'@'+m.packageVersion+' pub='+JSON.stringify((m.projects||[]).map(p=>p.publication||null))))" || true
+          node -e "
+          const fs=require('fs'),path=require('path');const out=[];
+          for (const d of fs.readdirSync('node_modules').flatMap(x=>x.startsWith('@')?fs.readdirSync('node_modules/'+x).map(y=>x+'/'+y):[x])) {
+            const f=path.join('node_modules',d,'expo-module.config.json'); if(!fs.existsSync(f)) continue;
+            const c=fs.readFileSync(f,'utf8'); if(c.includes('publication')) out.push(d+'@'+require('./'+path.join('node_modules',d,'package.json')).version+' '+c.replace(/\s+/g,' ').slice(0,300));
+          }
+          console.log('::notice title=publication::'+(out.join(' || ')||'none'));"
 
       - name: Logic & database tests
         run: npm test
