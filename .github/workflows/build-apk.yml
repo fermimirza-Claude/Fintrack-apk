@@ -43,6 +43,15 @@ jobs:
       - name: Logic & database tests
         run: npm test
 
+      - name: Bundle JavaScript (checks for JS errors early)
+        shell: bash
+        run: |
+          set -o pipefail
+          npx expo export --platform android --output-dir /tmp/js-check 2>&1 | tee js-bundle.log || {
+            grep -n -i -E "error|unable|cannot|failed|SyntaxError" js-bundle.log | head -n 25 | while IFS= read -r l; do echo "::error title=Metro::${l}"; done
+            tail -n 40 js-bundle.log | sed -e 's/%/%25/g' | awk '{printf "%s%%0A", $0}' | xargs -0 -I{} echo "::error title=Metro tail::{}"
+            exit 1; }
+
       - name: Generate native Android project
         run: npx expo prebuild --platform android --no-install --clean
 
