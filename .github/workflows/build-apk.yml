@@ -29,6 +29,14 @@ jobs:
       - name: Align native module versions with the Expo SDK
         run: npx expo install --fix
 
+      - name: Diagnostics (versions)
+        shell: bash
+        run: |
+          for p in expo expo-modules-autolinking expo-modules-core react-native expo-sqlite expo-file-system expo-notifications expo-crypto @expo/vector-icons; do
+            v=$(node -p "require('$p/package.json').version" 2>/dev/null || echo missing); echo "::notice title=ver::$p@$v"; done
+          npx expo-modules-autolinking resolve -p android --json > al.json 2>/dev/null || true
+          node -e "const j=require('./al.json');(j.modules||[]).forEach((m,i)=>console.log('::notice title=mod'+i+'::'+m.packageName+'@'+m.packageVersion+' pub='+JSON.stringify((m.projects||[]).map(p=>p.publication||null))))" || true
+
       - name: Logic & database tests
         run: npm test
 
