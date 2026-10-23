@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 17
@@ -37,7 +37,23 @@ jobs:
 
       - name: Build release APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a,armeabi-v7a
+        shell: bash
+        run: |
+          set -o pipefail
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace -PreactNativeArchitectures=arm64-v8a,armeabi-v7a 2>&1 | tee ../gradle-build.log
+
+      - name: Report build error
+        if: failure()
+        shell: bash
+        run: |
+          # Surface the real Gradle error as annotations (readable without downloading logs).
+          f=gradle-build.log
+          [ -f "$f" ] || { echo "::error title=No gradle log::gradle-build.log not found"; exit 0; }
+          { grep -n -A 25 "What went wrong" "$f" || tail -n 60 "$f"; } | head -n 80 > err.txt
+          msg=$(sed -e 's/%/%25/g' -e 's/\r//g' err.txt | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Gradle error::${msg}"
+          grep -n -E "^e: |error:|FAILURE|Execution failed" "$f" | head -n 30 | while IFS= read -r line; do echo "::error title=Gradle line::${line}"; done
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
